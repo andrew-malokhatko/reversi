@@ -1,6 +1,6 @@
-from tabnanny import check
+from itertools import product
+from textwrap import indent
 from time import sleep
-from tkinter import BUTT
 import pygame
 from collections import namedtuple
 import random
@@ -53,42 +53,9 @@ class Tile(pygame.sprite.Sprite):
     def update(self, screen):
         self.draw(screen)
 
-    def on_click(self, tiles: list): # changing color of clicked tile
-        global t
-
-        def move(indexes, color, steps): # going through one line of blocks
-            step_x = steps[0]
-            step_y = steps[1]
-            on_axis = []
-            while in_range(step_x + indexes[0]) and in_range(step_y + indexes[1]):
-                ind_x = int(indexes[0] + step_x)
-                ind_y = int(indexes[1] + step_y)
-                if tiles[ind_x][ind_y].color == DESKCOLOR or tiles[ind_x][ind_y].color == PLAYERCOLOR and len(on_axis) == 0:
-                    return False
-                elif tiles[ind_x][ind_y].color == color and len(on_axis) > 0:
-                    return True
-                else:
-                    if tiles[ind_x][ind_y].color == BOTCOLOR:
-                        on_axis.append(tiles[ind_x][ind_y])
-                    step_x += steps[0]
-                    step_y += steps[1]
-
-        def get_index(): # returns tuple ind(x, y)
-            x_ind = (self.pos.x - x_offset) / BLOCKSIZE
-            y_ind = (self.pos.y - y_offset) / BLOCKSIZE
-            return x_ind, y_ind
-
-        def in_range(ind):
-            return ind >= 0 and ind < SIDE
-
-        x, y = pygame.mouse.get_pos()
-        if self.rect.collidepoint(x, y) and self.color == DESKCOLOR:
-            ind = get_index()
-            if move(ind, PLAYERCOLOR, (1, 0)) or move(ind, PLAYERCOLOR, (-1, 0)) or move(ind, PLAYERCOLOR, (0, 1)) or move(ind, PLAYERCOLOR, (0, -1)) or \
-               move(ind, PLAYERCOLOR, (1, 1)) or move(ind, PLAYERCOLOR, (-1, 1)) or move(ind, PLAYERCOLOR, (1, -1)) or move(ind, PLAYERCOLOR, (-1, -1)) :
-                self.color = PLAYERCOLOR
-                self.image.fill(self.color)
-                return self.pos
+    def change_color(self, color):
+        self.color = color
+        self.image.fill(self.color)
 
     def draw(self, screen: pygame.Surface):
         self.image.fill(self.color)
@@ -114,94 +81,75 @@ class Desk: # list of tiles also its doing all operations with them
             for k in range(SIDE):
                 self.tiles[i][k].update(screen)
 
-    def render_desk(self, x, y, color): # checking and changing tiles color when necessary
-
-        def in_range(ind): # checking is index in range of list
-            return ind < SIDE and ind >=0
-
-        def to_index(x, y): # gets index by position
-            x_ind = (x - x_offset) / BLOCKSIZE
-            y_ind = (y - y_offset) / BLOCKSIZE
-            return x_ind, y_ind
-
-        def move(indexes, color, steps): # going through one line of blocks
-            step_x = steps[0]
-            step_y = steps[1]
-            on_axis = []
-            while in_range(indexes[0]+step_x) and in_range(indexes[1]+step_y):
-                ind_x = int(indexes[0] + step_x)
-                ind_y = int(indexes[1] + step_y)
-                if self.tiles[ind_x][ind_y].color == DESKCOLOR or self.tiles[ind_x][ind_y].color == color and len(on_axis) == 0:
-                    break
-                elif self.tiles[ind_x][ind_y].color == color: 
-                    for tile in on_axis:
-                        tile.color = color
-                    break
-                else:
-                    if color != self.tiles[ind_x][ind_y]:
-                        on_axis.append(self.tiles[ind_x][ind_y])
-                    step_x += steps[0]
-                    step_y += steps[1]
-
-        ind_x, ind_y = to_index(x, y)
-        #print(ind)
-
-        if ind_x != None:
-            move((ind_x, ind_y), color, (1, 0)) # down
-            move((ind_x, ind_y), color, (-1, 0)) # up
-            move((ind_x, ind_y), color, (0, -1)) # left
-            move((ind_x, ind_y), color, (0, 1)) # right
-            move((ind_x, ind_y), color, (-1, -1)) # left top
-            move((ind_x, ind_y), color, (1, -1)) # right top
-            move((ind_x, ind_y), color, (1, 1)) # right down
-            move((ind_x, ind_y), color, (-1, 1)) # left down
-
-
-def bot_move(tiles: Tile):
-    global BOTCOLOR
-    c = 0
-
-    def in_range(ind):
-            return ind >= 0 and ind < SIDE
-
-    def move(indexes, color, steps): # going through one line of blocks
-        step_x = steps[0]
-        step_y = steps[1]
+    def move(self, indexes, color, steps, change_color): # going through one line of blocks
+        step_x, step_y = steps
         on_axis = []
-        while in_range(indexes[0] + step_x) and in_range(indexes[1]+step_y):
+        while self.in_range(indexes[0]+step_x) and self.in_range(indexes[1]+step_y):
             ind_x = int(indexes[0] + step_x)
             ind_y = int(indexes[1] + step_y)
-            if tiles[ind_x][ind_y].color == DESKCOLOR or tiles[ind_x][ind_y].color == BOTCOLOR and len(on_axis) == 0:
+            if self.tiles[ind_x][ind_y].color == DESKCOLOR or self.tiles[ind_x][ind_y].color == color and len(on_axis) == 0:
                 return False
-            elif tiles[ind_x][ind_y].color == color and len(on_axis) > 0:  #TOFIX
+            elif self.tiles[ind_x][ind_y].color == color: 
+                if change_color:
+                    for tile in on_axis:
+                        tile.color = color
                 return True
             else:
-                if tiles[ind_x][ind_y].color == PLAYERCOLOR:
-                    on_axis.append(tiles[ind_x][ind_y])
+                if color != self.tiles[ind_x][ind_y]:
+                    on_axis.append(self.tiles[ind_x][ind_y])
                 step_x += steps[0]
                 step_y += steps[1]
-    
-    s = set()
-    while True:
-        pre_len = len(s) 
-        ind_x = random.randint(0, SIDE-1)
-        ind_y = random.randint(0, SIDE-1)
-        to_s = str(ind_x) + str(ind_y)
-        s.add(to_s)
-        if pre_len == len(s):
-            continue
-        if len(s) >= 63:
-            return None
-        ind = (ind_x, ind_y)
-        if tiles[ind_x][ind_y].color != PLAYERCOLOR and tiles[ind_x][ind_y].color != BOTCOLOR:
-            if move(ind, BOTCOLOR, (1, 0)) or move(ind, BOTCOLOR, (-1, 0)) or move(ind, BOTCOLOR, (0, 1)) or move(ind, BOTCOLOR, (0, -1)) or \
-               move(ind, BOTCOLOR, (1, 1)) or move(ind, BOTCOLOR, (-1, 1)) or move(ind, BOTCOLOR, (1, -1)) or move(ind, BOTCOLOR, (-1, -1)) :
-                break
+        return False
 
-    return Position(ind[0], ind[1])
+    def in_range(self, ind): # checking is index in range of list
+        return ind < SIDE and ind >=0
+
+    def on_click(self, tiles: list): # changing color of clicked tile(big fuck up)
+        x, y = pygame.mouse.get_pos()
+        good_choice = False
+        for i, k in product(range(SIDE), range(SIDE)):
+
+            if not self.tiles[i][k].rect.collidepoint(x, y) or not self.tiles[i][k].color == DESKCOLOR:
+                continue
+                
+            for j, l in product((-1, 0, 1), (-1, 0, 1)):
+                if self.move((i, k), PLAYERCOLOR, (j, l), False):
+                    good_choice = True
+
+            if good_choice:
+                self.tiles[i][k].change_color(PLAYERCOLOR)
+                print(i, k, self.tiles[i][k].pos, x, y)
+                return i, k
+
+    def render_desk(self, ind, color): # checking and changing tiles color when necessary
+        ind_x, ind_y = ind
+        if ind_x != None:
+            for i, k in product((-1, 0, 1), (-1, 0, 1)):
+                self.move((ind_x, ind_y), color, (i, k), True)
 
 
+    def bot_move(self, tiles: Tile):
+        global BOTCOLOR
+        c = 0    
+        s = set()
+        thinking = True
 
+        while thinking:
+            ind = None
+            while not ind or ind in s:
+                ind_x, ind_y = random.randint(0, SIDE-1), random.randint(0, SIDE-1)
+                ind = (ind_x, ind_y)
+
+            s.add(ind)
+            if len(s) >= SIDE * SIDE - 1:
+                return None
+
+            if tiles[ind_x][ind_y].color != PLAYERCOLOR and tiles[ind_x][ind_y].color != BOTCOLOR:
+                for i, k in product((-1, 0, 1), (-1, 0, 1)):
+                    if self.move(ind, BOTCOLOR, (i, k), False):
+                        thinking = False
+
+        return Position(ind[0], ind[1])
 
 def game_over():
     player_points = 0
@@ -245,25 +193,24 @@ while game_on:
             is_passed = pass_btn.check_pressed()
             if is_passed:
                 sleep(1)
-                ind = bot_move(desk.tiles)
+                ind = desk.bot_move(desk.tiles)
                 if ind != None:
                     desk.tiles[ind.x][ind.y].color = BOTCOLOR
-                    desk.render_desk(desk.tiles[ind.x][ind.y].pos.x, desk.tiles[ind.x][ind.y].pos.y, BOTCOLOR)
+                    desk.render_desk(ind , BOTCOLOR)
                     break
-
-            for i in range(SIDE):
-                for k in range(SIDE):
-                    pos = desk.tiles[i][k].on_click(desk.tiles)
-                    if pos:
-                        desk.render_desk(pos.x, pos.y, PLAYERCOLOR)
-                        desk.update_tiles(screen)
-                        pygame.display.flip()
-                        sleep(1)
-                        ind = bot_move(desk.tiles)
-                        if ind != None:
-                            desk.tiles[ind.x][ind.y].color = BOTCOLOR
-                            desk.render_desk(desk.tiles[ind.x][ind.y].pos.x, desk.tiles[ind.x][ind.y].pos.y, BOTCOLOR)
-                        game_over()
+            print("got to oncl")
+            ind = desk.on_click(desk.tiles)
+            print("ass")
+            if ind:
+                desk.render_desk(ind , PLAYERCOLOR)
+                desk.update_tiles(screen)
+                pygame.display.flip()
+                pygame.time.wait(1000)
+                ind = desk.bot_move(desk.tiles)
+                if ind != None:
+                    desk.tiles[ind.x][ind.y].color = BOTCOLOR
+                    desk.render_desk(ind, BOTCOLOR)
+                game_over()
 
     screen.fill((0, 0, 0))
     buttons.draw(screen)
