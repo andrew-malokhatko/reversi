@@ -118,7 +118,6 @@ class Desk: # list of tiles also its doing all operations with them
 
             if good_choice:
                 self.tiles[i][k].change_color(PLAYERCOLOR)
-                print(i, k, self.tiles[i][k].pos, x, y)
                 return i, k
 
     def render_desk(self, ind, color): # checking and changing tiles color when necessary
@@ -166,7 +165,7 @@ def game_over():
 
 
 def pass_move():
-    print("asss")
+    pass
 
 def restart():
     for i in range(SIDE):
@@ -198,9 +197,7 @@ while game_on:
                     desk.tiles[ind.x][ind.y].color = BOTCOLOR
                     desk.render_desk(ind , BOTCOLOR)
                     break
-            print("got to oncl")
             ind = desk.on_click(desk.tiles)
-            print("ass")
             if ind:
                 desk.render_desk(ind , PLAYERCOLOR)
                 desk.update_tiles(screen)
