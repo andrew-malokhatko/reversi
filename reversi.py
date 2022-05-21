@@ -1,3 +1,4 @@
+from email.mime import base
 from itertools import product
 from textwrap import indent
 from time import sleep
@@ -87,13 +88,16 @@ class Desk: # list of tiles also its doing all operations with them
         while self.in_range(indexes[0]+step_x) and self.in_range(indexes[1]+step_y):
             ind_x = int(indexes[0] + step_x)
             ind_y = int(indexes[1] + step_y)
+
             if self.tiles[ind_x][ind_y].color == DESKCOLOR or self.tiles[ind_x][ind_y].color == color and len(on_axis) == 0:
                 return False
+
             elif self.tiles[ind_x][ind_y].color == color: 
                 if change_color:
                     for tile in on_axis:
                         tile.color = color
                 return True
+
             else:
                 if color != self.tiles[ind_x][ind_y]:
                     on_axis.append(self.tiles[ind_x][ind_y])
@@ -113,42 +117,82 @@ class Desk: # list of tiles also its doing all operations with them
                 continue
                 
             for j, l in product((-1, 0, 1), (-1, 0, 1)):
+
+                if j == 0 and l == 0:
+                    continue
+
                 if self.move((i, k), PLAYERCOLOR, (j, l), False):
                     good_choice = True
 
             if good_choice:
                 self.tiles[i][k].change_color(PLAYERCOLOR)
+                print(i, k)
                 return i, k
 
     def render_desk(self, ind, color): # checking and changing tiles color when necessary
         ind_x, ind_y = ind
-        if ind_x != None:
-            for i, k in product((-1, 0, 1), (-1, 0, 1)):
-                self.move((ind_x, ind_y), color, (i, k), True)
+
+        if ind_x == None:
+            return
+
+        for i, k in product((-1, 0, 1), (-1, 0, 1)):
+            if i == 0 and k == 0:
+                continue
+            self.move((ind_x, ind_y), color, (i, k), True)
 
 
     def bot_move(self, tiles: Tile):
         global BOTCOLOR
-        c = 0    
-        s = set()
-        thinking = True
+        s = SIDE - 1
+        possible_moves = [] # all moves are indices (x, y)
+        bad_possible_moves = [] 
+        good_moves = [(0, 0), (s, 0), (s, s), (0, s)]
 
-        while thinking:
-            ind = None
-            while not ind or ind in s:
-                ind_x, ind_y = random.randint(0, SIDE-1), random.randint(0, SIDE-1)
-                ind = (ind_x, ind_y)
+        bad_moves = [(0, 1), (1, 1), (1, 0),
+                     (0, s - 1), (1, s - 1), (1, s),
+                     (0, s - 1), (1, s - 1), (1, s),
+                     (s, s - 1), (s - 1, s - 1), (s, s - 1)]
 
-            s.add(ind)
-            if len(s) >= SIDE * SIDE - 1:
-                return None
+        for i, j in product(range(SIDE), range(SIDE)):
+            possible = False
 
-            if tiles[ind_x][ind_y].color != PLAYERCOLOR and tiles[ind_x][ind_y].color != BOTCOLOR:
-                for i, k in product((-1, 0, 1), (-1, 0, 1)):
-                    if self.move(ind, BOTCOLOR, (i, k), False):
-                        thinking = False
+            if tiles[i][j].color == PLAYERCOLOR or tiles[i][j].color == BOTCOLOR:
+                continue
+            
+            for k, l in product((-1, 0, 1), (-1, 0, 1)):
+                
+                if k == 0 and l == 0:
+                    continue
+                
+                if self.move((i, j), BOTCOLOR, (k, l), False):
+                    print("ind : ", i, j,"step :", k,l)
+                    possible = True
+            
+            # print(possible)
+            
+            if possible:
+                possible_moves.append((i, j))
 
-        return Position(ind[0], ind[1])
+        for move in possible_moves:
+            
+            for good_move in good_moves:
+                if move == good_move:
+                    return Position(move[0], move[1])
+
+            def is_bad(move):
+                for bad_move in bad_moves:
+                    if bad_move == move:
+                        return True
+                return False
+
+            if is_bad(move):
+                    possible_moves.remove(move)
+                    bad_possible_moves.append(move)
+            else:
+                return Position(move[0], move[1])
+
+        random_move = bad_possible_moves[random.randint(len(possible_moves))]
+        return Position(random_move[0], random_move[1])
 
 def game_over():
     player_points = 0
