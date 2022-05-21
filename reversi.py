@@ -1,10 +1,10 @@
-from email.mime import base
 from itertools import product
-from textwrap import indent
 from time import sleep
 import pygame
 from collections import namedtuple
 import random
+
+pygame.init()
 
 Position = namedtuple("Position", ["x", "y"])
 
@@ -15,6 +15,7 @@ PLAYERCOLOR = (255, 255, 255)
 BOTCOLOR = (0, 0, 0)
 DESKCOLOR = (40, 255, 80)
 
+font = pygame.font.Font('freesansbold.ttf', 32)
 screen = pygame.display.set_mode(SCREENSIZE) # variables
 game_on = True
 t = 0 # is for turns
@@ -82,7 +83,7 @@ class Desk: # list of tiles also its doing all operations with them
             for k in range(SIDE):
                 self.tiles[i][k].update(screen)
 
-    def move(self, indexes, color, steps, change_color): # going through one line of blocks
+    def move(self, indexes, color, steps, change_color, num_of_tiles): # going through one line of blocks
         step_x, step_y = steps
         on_axis = []
         while self.in_range(indexes[0]+step_x) and self.in_range(indexes[1]+step_y):
@@ -90,12 +91,16 @@ class Desk: # list of tiles also its doing all operations with them
             ind_y = int(indexes[1] + step_y)
 
             if self.tiles[ind_x][ind_y].color == DESKCOLOR or self.tiles[ind_x][ind_y].color == color and len(on_axis) == 0:
+                if num_of_tiles:
+                    return False, 0
                 return False
 
             elif self.tiles[ind_x][ind_y].color == color: 
                 if change_color:
                     for tile in on_axis:
                         tile.color = color
+                if num_of_tiles:
+                    return True, len(on_axis)
                 return True
 
             else:
@@ -103,6 +108,8 @@ class Desk: # list of tiles also its doing all operations with them
                     on_axis.append(self.tiles[ind_x][ind_y])
                 step_x += steps[0]
                 step_y += steps[1]
+        if num_of_tiles:
+            return False, 0
         return False
 
     def in_range(self, ind): # checking is index in range of list
@@ -121,7 +128,7 @@ class Desk: # list of tiles also its doing all operations with them
                 if j == 0 and l == 0:
                     continue
 
-                if self.move((i, k), PLAYERCOLOR, (j, l), False):
+                if self.move((i, k), PLAYERCOLOR, (j, l), False, False):
                     good_choice = True
 
             if good_choice:
@@ -138,23 +145,32 @@ class Desk: # list of tiles also its doing all operations with them
         for i, k in product((-1, 0, 1), (-1, 0, 1)):
             if i == 0 and k == 0:
                 continue
-            self.move((ind_x, ind_y), color, (i, k), True)
+            self.move((ind_x, ind_y), color, (i, k), True, False)
 
 
     def bot_move(self, tiles: Tile):
         global BOTCOLOR
+        move = namedtuple("move", ["indices", "tiles"])
         s = SIDE - 1
         possible_moves = [] # all moves are indices (x, y)
-        bad_possible_moves = [] 
+        bad_possible_moves = []
+        to_remove = []
+        possible_nice_moves = []
         good_moves = [(0, 0), (s, 0), (s, s), (0, s)]
 
         bad_moves = [(0, 1), (1, 1), (1, 0),
+                     (s - 1, 0), (s - 1, 1), (s, 1),
                      (0, s - 1), (1, s - 1), (1, s),
-                     (0, s - 1), (1, s - 1), (1, s),
-                     (s, s - 1), (s - 1, s - 1), (s, s - 1)]
+                     (s - 1, s), (s - 1, s - 1), (s, s - 1)]
+                    
+        nice_moves = [(s - 2, 0), (s - 3, 0), (s - 4, 0), (s - 5, 0),
+                      (s - 2, s), (s - 3, s), (s - 4, s), (s - 5, s),
+                      (0, s - 2), (0, s - 3), (0, s - 4), (0, s - 5),
+                      (s, s - 2), (s, s - 3), (s, s - 4), (s, s - 5)]
 
         for i, j in product(range(SIDE), range(SIDE)):
             possible = False
+            used_tiles = 0
 
             if tiles[i][j].color == PLAYERCOLOR or tiles[i][j].color == BOTCOLOR:
                 continue
@@ -164,48 +180,78 @@ class Desk: # list of tiles also its doing all operations with them
                 if k == 0 and l == 0:
                     continue
                 
-                if self.move((i, j), BOTCOLOR, (k, l), False):
-                    print("ind : ", i, j,"step :", k,l)
+                is_possible, tiless = self.move((i, j), BOTCOLOR, (k, l), False, True)
+                used_tiles += tiless
+                if is_possible:
                     possible = True
-            
-            # print(possible)
-            
+
             if possible:
-                possible_moves.append((i, j))
+                possible_moves.append(move(Position(i, j), used_tiles))
 
         for move in possible_moves:
             
             for good_move in good_moves:
-                if move == good_move:
-                    return Position(move[0], move[1])
+                if move.indices == good_move:
+                    return Position(move.indices[0], move.indices[1])
 
-            def is_bad(move):
-                for bad_move in bad_moves:
-                    if bad_move == move:
+            def is_bad(move, moves):
+                for bad_move in moves: 
+                    if bad_move == move.indices:
                         return True
                 return False
 
-            if is_bad(move):
-                    possible_moves.remove(move)
-                    bad_possible_moves.append(move)
-            else:
-                return Position(move[0], move[1])
+            if is_bad(move, bad_moves):
+                to_remove.append(move)
+                bad_possible_moves.append(move)
 
-        random_move = bad_possible_moves[random.randint(len(possible_moves))]
-        return Position(random_move[0], random_move[1])
+            if is_bad(move, nice_moves):
+                to_remove.append(move)
+                possible_nice_moves.append(move)
+
+        for move in to_remove:
+            possible_moves.remove(move)
+        
+        nice_m = len(possible_nice_moves)
+        moves = len(possible_moves)
+        bmoves = len(bad_possible_moves)
+
+        print("nice_moves:", possible_nice_moves)
+        print("possible_moves: ", possible_moves)
+        print("bad moves: ", bad_possible_moves)
+
+        def most_captured(list):
+            move = namedtuple("move", ["indices", "tiles"])
+            max_tiles = move(Position(-1, -1), -1)
+            for move in list:
+                if move.tiles > max_tiles.tiles:
+                    max_tiles = move
+            return max_tiles
+            
+
+        if nice_m != 0:
+            the_move = most_captured(possible_nice_moves)
+            return Position(the_move.indices[0], the_move.indices[1])
+
+        elif moves != 0:
+            the_move = most_captured(possible_moves)
+            return Position(the_move.indices[0], the_move.indices[1])
+
+        elif bmoves != 0:
+            the_move = most_captured(bad_possible_moves)
+            return Position(the_move.indices[0], the_move.indices[1])
+        else:
+            return None
 
 def game_over():
     player_points = 0
     bot_points = 0
-    for i in range(SIDE):
-        for k in range(SIDE):
-            if desk.tiles[i][k].color == DESKCOLOR:
-                return False
-            elif desk.tiles[i][k].color == PLAYERCOLOR:
-                player_points += 1
-            elif desk.tiles[i][k].color == BOTCOLOR:
-                bot_points += 1
-    print("bot points: ",bot_points, "player points: ", player_points)
+    for i, k in product(range(SIDE), range(SIDE)):
+        if desk.tiles[i][k].color == PLAYERCOLOR:
+            player_points += 1
+        elif desk.tiles[i][k].color == BOTCOLOR:
+            bot_points += 1
+    return bot_points, player_points
+    
 
 
 def pass_move():
@@ -251,9 +297,15 @@ while game_on:
                 if ind != None:
                     desk.tiles[ind.x][ind.y].color = BOTCOLOR
                     desk.render_desk(ind, BOTCOLOR)
-                game_over()
 
     screen.fill((0, 0, 0))
     buttons.draw(screen)
+
+    bot_points, player_points = game_over()
+    player_surf = font.render(f"player_points: {player_points}", True, (200, 100, 100), None)
+    bot_surf = font.render(f"bot points: {bot_points}", True, (200, 100, 100), None)
+    screen.blit(player_surf, (1250, 500))
+    screen.blit(bot_surf, (1250, 600))
+
     desk.update_tiles(screen)
     pygame.display.flip() # while doing +1 or -1 we are just moving to the next column
